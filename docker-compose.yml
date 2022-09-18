@@ -15,6 +15,15 @@ services:
     container_name: movie_nginx
     restart: on-failure
 
+  redis:
+    image: "redis:alpine"
+    volumes:
+      - ../redis/data:/data
+    container_name: movie_redis
+    expose:
+      - "6379"
+    restart: always
+
   backend:
     build: app
     image: movie_image_backend
@@ -27,22 +36,40 @@ services:
     env_file:
       - .env.sample
     depends_on:
-      - db
+      - redis
+      - pg
+      - elasticsearch
     restart: on-failure
 
   elasticsearch:
-    image: elasticsearch:7.8.1
+    image: elasticsearch:7.17.6
+    volumes:
+      - ./elastic/data:/var/lib/elasticsearch/esdata1
     environment:
       - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms200m -Xmx200m
+    container_name: movie_es
     ports:
       - "9200:9200"
-    depends_on:
-      - db
+    restart: on-failure
 
-  db:
+  pg:
     image: postgres:13
     volumes:
       - ../postgresql/data:/var/lib/postgresql/data
     env_file: .env.sample
-    container_name: movie_db
+    container_name: movie_pg
     restart: on-failure
+
+  etl:
+    container_name: movie_etl
+    image: movie_image_etl
+    build: postgres_to_es
+    env_file:
+      - .env.sample
+    depends_on:
+      - pg
+      - redis
+      - elasticsearch
+    restart: always
