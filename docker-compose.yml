@@ -47,6 +47,7 @@ services:
       - ./elastic/data:/var/lib/elasticsearch/esdata1
     environment:
       - discovery.type=single-node
+      - ingest.geoip.downloader.enabled=false
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms200m -Xmx200m
     container_name: movie_es
