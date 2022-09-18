@@ -5,7 +5,7 @@ import dataclasses
 from datetime import datetime
 from typing import List
 
-from model_dataclasses import IDFilmwork, Filmwork
+from model_dataclasses import Filmwork
 from decorator import backoff
 from settings import Settings
 
