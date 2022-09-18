@@ -1,6 +1,5 @@
 import json
 from dataclasses import asdict
-from elasticsearch import Elasticsearch, TransportError
 from elasticsearch.exceptions import RequestError
 import logging
 
