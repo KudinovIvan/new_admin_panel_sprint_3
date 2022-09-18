@@ -1,6 +1,5 @@
 import json
 from dataclasses import asdict
-from typing import List
 from elasticsearch import Elasticsearch, TransportError
 from elasticsearch.exceptions import RequestError
 import logging
@@ -15,7 +14,7 @@ class ES_LOAD:
         self.cnf = Settings()
         self.conn = conn
 
-    @backoff()
+    @backoff(logger=logging.getLogger('es_load::create_index'))
     def create_index(self, index_name: str, index_body: str):
         """
         Создание индекса в es
@@ -28,8 +27,8 @@ class ES_LOAD:
             else:
                 raise e
 
-    @backoff()
-    def bulk_update(self, docs: List[Filmwork]) -> bool:
+    @backoff(logger=logging.getLogger('es_load::bulk_update'))
+    def bulk_update(self, docs: list[Filmwork]) -> bool:
         """
         Запись данных в es
         """
