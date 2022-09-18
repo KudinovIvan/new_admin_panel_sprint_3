@@ -2,8 +2,10 @@ from contextlib import contextmanager
 from elasticsearch import Elasticsearch
 from datetime import datetime, timedelta
 import psycopg2
+import logging
 from psycopg2.extensions import connection as _connection
 from psycopg2.extras import DictCursor
+from time import sleep
 
 from index import MOVIE_INDEX as index_body
 from settings import Settings
@@ -19,7 +21,7 @@ def conn_context_es(host: str, port: str):
     Подключение к es
     """
 
-    @backoff()
+    @backoff(logger=logging.getLogger('main::conn_context_es'))
     def connect(host: str, port: str):
         conn = Elasticsearch(f"{host}://{host}:{port}")
         return conn
@@ -34,7 +36,7 @@ def conn_context_postgres(dsl: dict):
     Подключение к postgres
     """
 
-    @backoff()
+    @backoff(logger=logging.getLogger('main::conn_context_postgres'))
     def connect(dsl: dict):
         conn = psycopg2.connect(**dsl, cursor_factory=DictCursor)
         return conn
@@ -48,13 +50,10 @@ def postgres_to_es(es_conn: Elasticsearch, pg_conn: _connection):
     Основной скрипт по выгрузке данных в es
     """
     redis = ETLRedis()
-
     pg_dump = PG_DUMP(pg_conn)
     es_load = ES_LOAD(es_conn)
-
     lasttime = redis.get_lasttime()
-    ids = pg_dump.get_updated_id(lasttime)
-    if ids:
+    for ids in pg_dump.get_updated_id(lasttime):
         films = pg_dump.get_filmsbyid(ids)
         redis.set_lasttime(datetime.now())
         es_load.create_index(settings.elastic_index, index_body)
@@ -72,4 +71,6 @@ if __name__ == '__main__':
     }
     with conn_context_es(settings.elastic_host, settings.elastic_port) as es_conn, \
             conn_context_postgres(dsl) as pg_conn:
-        postgres_to_es(es_conn, pg_conn)
+        while True:
+            postgres_to_es(es_conn, pg_conn)
+            sleep(10)
