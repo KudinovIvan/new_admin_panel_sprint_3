@@ -3,7 +3,6 @@ from psycopg2 import connect as pgconnect, sql
 import logging
 import dataclasses
 from datetime import datetime
-from typing import List
 
 from model_dataclasses import Filmwork
 from decorator import backoff
@@ -47,36 +46,30 @@ class PG_DUMP:
         self.cnf = Settings()
         self.conn = conn
 
-    @backoff()
+    @backoff(logger=logging.getLogger('pg_dump::_pg_id_query'))
     def _pg_id_query(self, sqlquery: str, query_args: datetime) -> list:
         """
         Получение id обновленных фильмов
         """
         with self.conn as conn, conn.cursor() as cur:
             cur.execute(sqlquery.format(lasttime=query_args))
-            rows = cur.fetchmany(self.cnf.dump_size)
-            current_fetch = cur.fetchmany(self.cnf.dump_size)
-            while current_fetch:
-                rows += current_fetch
-                current_fetch = cur.fetchmany(self.cnf.dump_size)
-        return [row[0] for row in rows]
+            while current_fetch := cur.fetchmany(self.cnf.dump_size):
+                yield [row[0] for row in current_fetch]
 
-    @backoff()
-    def _pg_query(self, sqlquery: str, query_args: list):
+    @backoff(logger=logging.getLogger('pg_dump::_pg_query'))
+    def _pg_query(self, sqlquery: str, query_args: list) -> list:
         """
           Получение даных по обновленным фильмам
         """
-        with self.conn as conn, conn.cursor() as cur:
-            cur.execute(sqlquery.format({}, ", ".join(f"'{arg}'" for arg in query_args)))
-            rows = cur.fetchmany(self.cnf.dump_size)
-            current_fetch = cur.fetchmany(self.cnf.dump_size)
-            while current_fetch:
-                rows += current_fetch
-                current_fetch = cur.fetchmany(self.cnf.dump_size)
+        cur = self.conn.cursor()
+        if not query_args:
+            query_args[0] = 0
+        cur.execute(sqlquery.format({}, ", ".join(f"'{arg}'" for arg in query_args)))
+        rows = cur.fetchall()
         return rows
 
     def get_updated_id(self, updated_datetime: datetime) -> list:
-        return self._pg_id_query(self.UPDATED, updated_datetime)
+         return self._pg_id_query(self.UPDATED, updated_datetime)
 
-    def get_filmsbyid(self, ids: tuple) -> List[Filmwork]:
+    def get_filmsbyid(self, ids: list) -> list[Filmwork]:
         return [Filmwork(*row) for row in self._pg_query(self.GETFILMSBYID, ids)]
